@@ -1,6 +1,6 @@
 __pycache__/
 .venv/
-data/
+/data/
 qdrant_storage/
 meta.json
 storage.sqlite

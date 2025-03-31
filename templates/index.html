@@ -7,61 +7,110 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <h1>Economic Chatbot with RAG</h1>
-    
-    <div class="container">
-        <div class="chat-container">
-            <h2>Chat with the Economic Assistant</h2>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="chat-input">
-                <input type="text" id="userQuestion" placeholder="Ask a question about the economy...">
-                <button onclick="sendMessage()">Send</button>
-            </div>
-        </div>
+    <div class="main-container">
+        <h1>Economic Chatbot with RAG</h1>
         
-        <div class="document-container">
-            <div class="tabs">
-                <div class="tab active" onclick="showTab('addDoc', this)">Add Document</div>
-                <div class="tab" onclick="showTab('viewDocs', this)">View Documents</div>
+        <div class="container">
+            <div class="chat-container">
+                <h2>Chat with the Economic Assistant</h2>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <input type="text" id="userQuestion" placeholder="Ask a question about the economy...">
+                    <button onclick="sendMessage()" aria-label="Send message">Send</button>
+                </div>
             </div>
             
-            {% if message %}
-            <div class="alert alert-success">{{ message }}</div>
-            {% endif %}
-            
-            {% if error %}
-            <div class="alert alert-error">{{ error }}</div>
-            {% endif %}
-            
-            <div class="tab-content active" id="addDoc">
-                <h2>Add Economic Data</h2>
-                <form action="/upload" method="post">
-                    <div>
-                        <label for="source">Source:</label>
-                        <input type="text" id="source" name="source" required placeholder="e.g., Federal Reserve Report 2023">
-                    </div>
-                    <div>
-                        <label for="content">Content:</label>
-                        <textarea id="content" name="content" rows="10" required placeholder="Paste economic data here..."></textarea>
-                    </div>
-                    <button type="submit">Add Document</button>
-                </form>
-            </div>
-            
-            <div class="tab-content" id="viewDocs">
-                <h2>Stored Documents</h2>
-                <div id="documentsList">Loading...</div>
+            <div class="document-container">
+                <div class="tabs">
+                    <div class="tab active" onclick="showTab('addDoc', this)">Add Document</div>
+                    <div class="tab" onclick="showTab('viewDocs', this)">View Documents</div>
+                </div>
+                
+                <div id="feedbackMessage" class="feedback-message"></div>
+                
+                <div class="tab-content active" id="addDoc">
+                    <h2>Add Economic Data</h2>
+                    <form id="documentForm" onsubmit="return addDocument(event)">
+                        <div class="form-group">
+                            <label for="source">Source:</label>
+                            <input type="text" id="source" name="source" required placeholder="e.g., Federal Reserve Report 2023" maxlength="200">
+                        </div>
+                        <div class="form-group">
+                            <label for="content">Content:</label>
+                            <textarea id="content" name="content" rows="6" required placeholder="Paste economic data here..." maxlength="2000"></textarea>
+                        </div>
+                        <button type="submit">Add Document</button>
+                    </form>
+                </div>
+                
+                <div class="tab-content" id="viewDocs">
+                    <h2>Stored Documents</h2>
+                    <div id="documentsList">Loading...</div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+
         // Chat history
         let chatHistory = [];
+
+        async function addDocument(event) {
+            event.preventDefault();
+            const sourceInput = document.getElementById('source');
+            const contentInput = document.getElementById('content');
+            const feedbackMessage = document.getElementById('feedbackMessage');
+
+            // Basic validation
+            if (sourceInput.value.trim() === '' || contentInput.value.trim() === '') {
+                feedbackMessage.textContent = 'Please fill in both source and content.';
+                feedbackMessage.className = 'feedback-message error';
+                return false;
+            }
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: new FormData(event.target)
+                });
+
+                const result = await response.text();
+
+                // Check if response contains success message
+                if (response.ok) {
+                    feedbackMessage.textContent = 'Document added successfully!';
+                    feedbackMessage.className = 'feedback-message success';
+                    
+                    // Clear inputs
+                    sourceInput.value = '';
+                    contentInput.value = '';
+
+                    // Optionally reload documents list
+                    if (document.getElementById('viewDocs').classList.contains('active')) {
+                        loadDocuments();
+                    }
+                } else {
+                    feedbackMessage.textContent = 'Failed to add document. Please try again.';
+                    feedbackMessage.className = 'feedback-message error';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                feedbackMessage.textContent = 'An error occurred while adding the document.';
+                feedbackMessage.className = 'feedback-message error';
+            }
+
+            return false;
+        }
         
         // Show selected tab
         function showTab(tabId, tabElement) {
-            // Update tab states
+            // Clear any previous feedback messages
+            const feedbackMessage = document.getElementById('feedbackMessage');
+            feedbackMessage.textContent = '';
+            feedbackMessage.className = 'feedback-message';
+
+            // Existing tab switching logic
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -69,11 +118,9 @@
                 content.classList.remove('active');
             });
             
-            // Activate selected tab
             tabElement.classList.add('active');
             document.getElementById(tabId).classList.add('active');
             
-            // Load documents if viewing docs tab
             if (tabId === 'viewDocs') {
                 loadDocuments();
             }

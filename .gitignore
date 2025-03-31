@@ -4,3 +4,4 @@ data/
 qdrant_storage/
 meta.json
 storage.sqlite
+.env

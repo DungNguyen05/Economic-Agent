@@ -33,19 +33,38 @@ def _parse_float(value: Optional[str], default: float) -> float:
     except ValueError:
         return default
 
-# Base paths
+# Base paths with explicit creation
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
-DATA_DIR = os.getenv("DATA_DIR", str(BASE_DIR / "data"))
 
-# Create necessary directories
-Path(TEMPLATES_DIR).mkdir(exist_ok=True)
-Path(STATIC_DIR).mkdir(exist_ok=True)
-Path(DATA_DIR).mkdir(exist_ok=True)
+# Ensure data directory is created with a more robust method
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data"))).resolve()
+
+# Create necessary directories with logging
+def create_directories():
+    """Create all necessary directories with logging"""
+    directories = [
+        TEMPLATES_DIR,
+        STATIC_DIR,
+        DATA_DIR,
+        DATA_DIR / "qdrant_storage",
+        DATA_DIR / "transformers_cache",
+        DATA_DIR / "torch_hub_cache"
+    ]
+    
+    for directory in directories:
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Created directory: {directory}")
+        except Exception as e:
+            logging.error(f"Error creating directory {directory}: {e}")
+
+# Call directory creation immediately
+create_directories()
 
 # Document storage file
-DOCUMENTS_FILE = Path(DATA_DIR) / "documents.json"
+DOCUMENTS_FILE = DATA_DIR / "documents.json"
 
 # Embedding model configuration
 # Use local sentence-transformers for embeddings (to save tokens)

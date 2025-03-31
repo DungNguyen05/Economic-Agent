@@ -17,10 +17,20 @@ class Chatbot:
         self.model = config.OPENAI_CHAT_MODEL
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
-        # Configure OpenAI client with minimal arguments
-        self.client = openai.OpenAI(
-            api_key=config.OPENAI_API_KEY or ""
-        )
+        # Configure OpenAI client with backwards-compatible initialization
+        try:
+            # Try the newer method first
+            if hasattr(openai, 'OpenAI'):
+                self.client = openai.OpenAI(
+                    api_key=config.OPENAI_API_KEY or ""
+                )
+            else:
+                # Fallback to older method
+                openai.api_key = config.OPENAI_API_KEY or ""
+                self.client = openai
+        except Exception as e:
+            logging.error(f"Error initializing OpenAI client: {e}")
+            self.client = None
         
         if not config.OPENAI_API_KEY:
             logging.warning("OPENAI_API_KEY not set. OpenAI chat completion will not work.")
@@ -81,15 +91,26 @@ Context information:
         try:
             if not config.OPENAI_API_KEY:
                 raise ValueError("OpenAI API key is not set. Cannot generate response.")
-                
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=config.TEMPERATURE,
-                max_tokens=config.MAX_TOKENS_RESPONSE
-            )
             
-            answer = response.choices[0].message.content
+            # Handle different OpenAI library versions
+            if hasattr(self.client, 'chat') and hasattr(self.client.chat, 'completions'):
+                # Newer OpenAI library version
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=config.TEMPERATURE,
+                    max_tokens=config.MAX_TOKENS_RESPONSE
+                )
+                answer = response.choices[0].message.content
+            else:
+                # Older OpenAI library version
+                response = self.client.ChatCompletion.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=config.TEMPERATURE,
+                    max_tokens=config.MAX_TOKENS_RESPONSE
+                )
+                answer = response['choices'][0]['message']['content']
             
             # Return the answer and sources
             sources = [{"id": doc["id"], "source": doc["source"]} for doc in relevant_docs]

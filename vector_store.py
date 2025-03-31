@@ -12,46 +12,90 @@ from qdrant_client.http import models as qdrant_models
 import config
 from utils import generate_id, get_current_timestamp, save_json, load_json, count_tokens
 
-# Import sentence-transformers for embeddings
-from sentence_transformers import SentenceTransformer
+# Configure more verbose logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Modify import for sentence-transformers to handle potential changes
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    try:
+        from sentence_transformers.models import SentenceTransformer
+    except ImportError:
+        logger.error("Could not import SentenceTransformer. Please check your installation.")
+        SentenceTransformer = None
 
 class VectorStore:
     """Vector store for document embeddings and retrieval using Qdrant"""
     
     def __init__(self, force_reset: bool = False):
         """Initialize the vector store with Qdrant"""
+        # Early logging
+        logger.info("Starting VectorStore initialization")
+        
+        # Validate SentenceTransformer import
+        if SentenceTransformer is None:
+            logger.error("SentenceTransformer could not be imported")
+            raise ImportError("SentenceTransformer could not be imported. Please reinstall sentence-transformers.")
+        
+        # Initialize basic attributes
         self.embedding_model_name = config.EMBEDDING_MODEL
         self.collection_name = "economic_documents"
         self.documents = []
-        self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
-        # Initialize the embedding model
-        logging.info(f"Loading embedding model: {self.embedding_model_name}")
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
+        # Initialize tokenizer
+        try:
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        except Exception as e:
+            logger.error(f"Error initializing tokenizer: {e}")
+            raise
+        
+        # Load embedding model with timeout
+        logger.info(f"Attempting to load embedding model: {self.embedding_model_name}")
+        try:
+            # Set a timeout for model loading
+            torch.hub.set_dir(os.path.join(config.DATA_DIR, "torch_hub_cache"))
+            self.embedding_model = SentenceTransformer(
+                self.embedding_model_name,
+                cache_folder=os.path.join(config.DATA_DIR, "transformers_cache")
+            )
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            raise
         
         # Get embedding dimension
-        self.dimension = self.embedding_model.get_sentence_embedding_dimension()
-        logging.info(f"Embedding dimension: {self.dimension}")
+        try:
+            self.dimension = self.embedding_model.get_sentence_embedding_dimension()
+            logger.info(f"Embedding dimension: {self.dimension}")
+        except Exception as e:
+            logger.error(f"Error getting embedding dimension: {e}")
+            raise
         
-        # Initialize Qdrant client with more robust configuration
+        # Qdrant storage path
         self.qdrant_path = os.path.join(config.DATA_DIR, "qdrant_storage")
         
         # Optional force reset of the vector store
         if force_reset and os.path.exists(self.qdrant_path):
-            logging.warning("Force resetting Qdrant storage...")
+            logger.warning("Force resetting Qdrant storage...")
             try:
                 shutil.rmtree(self.qdrant_path)
             except Exception as e:
-                logging.error(f"Error removing Qdrant storage: {e}")
+                logger.error(f"Error removing Qdrant storage: {e}")
         
         # Ensure directory exists
         os.makedirs(self.qdrant_path, exist_ok=True)
         
+        # Ensure cache directories exist
+        os.makedirs(os.path.join(config.DATA_DIR, "transformers_cache"), exist_ok=True)
+        os.makedirs(os.path.join(config.DATA_DIR, "torch_hub_cache"), exist_ok=True)
+        
         try:
-            logging.info(f"Initializing Qdrant with local storage at: {self.qdrant_path}")
+            logger.info(f"Initializing Qdrant with local storage at: {self.qdrant_path}")
             self.client = QdrantClient(
                 path=self.qdrant_path,
-                force_disable_check_same_thread=True  # Add this to mitigate thread-related issues
+                force_disable_check_same_thread=True
             )
             
             # Create collection if it doesn't exist
@@ -59,7 +103,7 @@ class VectorStore:
             collection_names = [collection.name for collection in collections]
             
             if self.collection_name not in collection_names:
-                logging.info(f"Creating new collection: {self.collection_name}")
+                logger.info(f"Creating new collection: {self.collection_name}")
                 self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=qdrant_models.VectorParams(
@@ -69,8 +113,8 @@ class VectorStore:
                 )
             
         except Exception as e:
-            logging.error(f"Error initializing Qdrant: {e}")
-            logging.info("Attempting to resolve by resetting Qdrant storage...")
+            logger.error(f"Error initializing Qdrant: {e}")
+            logger.info("Attempting to resolve by resetting Qdrant storage...")
             
             # Attempt to reset storage if initialization fails
             try:
@@ -88,17 +132,18 @@ class VectorStore:
                     )
                 )
             except Exception as reset_error:
-                logging.critical(f"Could not initialize or reset Qdrant: {reset_error}")
+                logger.critical(f"Could not initialize or reset Qdrant: {reset_error}")
                 raise RuntimeError("Unable to initialize vector store") from reset_error
         
         # Load existing documents if available
+        logger.info("Initialization complete. Loading existing documents.")
         self.load_data()
     
     def get_embedding(self, text: str) -> np.ndarray:
         """Get vector embedding using Sentence-Transformers"""
         # Count tokens for monitoring
         token_count = count_tokens(text)
-        logging.info(f"Getting embedding for {token_count} tokens")
+        logger.info(f"Getting embedding for {token_count} tokens")
         
         # Generate embedding using sentence-transformers
         with torch.no_grad():
@@ -200,28 +245,80 @@ class VectorStore:
         logging.info(f"Saved {len(self.documents)} document metadata to disk")
     
     def load_data(self) -> None:
-        """Load documents metadata from disk"""
+        """Load documents metadata from disk and synchronize"""
         try:
             # Load documents if exists
             documents = load_json(str(config.DOCUMENTS_FILE))
             if documents:
                 self.documents = documents
-                logging.info(f"Loaded {len(self.documents)} document metadata from disk")
+                logger.info(f"Loaded {len(self.documents)} document metadata from disk")
                 
                 # Verify documents exist in Qdrant
                 doc_count = self.client.count(
                     collection_name=self.collection_name
                 ).count
                 
-                logging.info(f"Qdrant contains {doc_count} vectors")
+                logger.info(f"Qdrant contains {doc_count} vectors")
                 
                 if doc_count != len(self.documents):
-                    logging.warning(f"Document count mismatch: {len(self.documents)} in JSON vs {doc_count} in Qdrant")
-                
+                    logger.warning(f"Document count mismatch: {len(self.documents)} in JSON vs {doc_count} in Qdrant")
+                    # Attempt to synchronize documents
+                    self.sync_documents()
+                    
         except Exception as e:
-            logging.error(f"Error loading data: {e}")
+            logger.error(f"Error loading data: {e}")
             # Initialize with empty data
             self.documents = []
+    
+    def sync_documents(self):
+        """
+        Synchronize documents between JSON metadata and Qdrant vector store.
+        This method ensures that documents in JSON are properly indexed in Qdrant.
+        """
+        logger.warning("Attempting to synchronize documents...")
+        
+        # Count existing documents in Qdrant
+        doc_count = self.client.count(
+            collection_name=self.collection_name
+        ).count
+        
+        # If Qdrant is empty but we have JSON metadata, re-add documents
+        if doc_count == 0 and self.documents:
+            logger.info(f"Re-adding {len(self.documents)} documents to Qdrant")
+            
+            # Batch re-add documents
+            points = []
+            for doc in self.documents:
+                try:
+                    # Get embedding for the document
+                    embedding = self.get_embedding(doc['content'])
+                    
+                    # Prepare point for Qdrant
+                    points.append(
+                        qdrant_models.PointStruct(
+                            id=doc['id'],
+                            vector=embedding.tolist(),
+                            payload={
+                                "content": doc['content'],
+                                "source": doc['source'],
+                                "date_added": doc.get('date_added', get_current_timestamp()),
+                                **(doc.get('metadata', {}))
+                            }
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Error preparing document {doc['id']} for re-indexing: {e}")
+            
+            # Batch upsert documents
+            if points:
+                try:
+                    self.client.upsert(
+                        collection_name=self.collection_name,
+                        points=points
+                    )
+                    logger.info(f"Successfully re-added {len(points)} documents to Qdrant")
+                except Exception as e:
+                    logger.error(f"Error re-adding documents to Qdrant: {e}")
     
     def bulk_add_documents(self, documents: List[Dict]) -> List[str]:
         """Add multiple documents at once (more efficient)"""

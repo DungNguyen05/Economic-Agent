@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Economic Chatbot</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Economic Chatbot with RAG</h1>
+    
+    <div class="container">
+        <div class="chat-container">
+            <h2>Chat with the Economic Assistant</h2>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+                <input type="text" id="userQuestion" placeholder="Ask a question about the economy...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        
+        <div class="document-container">
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('addDoc', this)">Add Document</div>
+                <div class="tab" onclick="showTab('viewDocs', this)">View Documents</div>
+            </div>
+            
+            {% if message %}
+            <div class="alert alert-success">{{ message }}</div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+            {% endif %}
+            
+            <div class="tab-content active" id="addDoc">
+                <h2>Add Economic Data</h2>
+                <form action="/upload" method="post">
+                    <div>
+                        <label for="source">Source:</label>
+                        <input type="text" id="source" name="source" required placeholder="e.g., Federal Reserve Report 2023">
+                    </div>
+                    <div>
+                        <label for="content">Content:</label>
+                        <textarea id="content" name="content" rows="10" required placeholder="Paste economic data here..."></textarea>
+                    </div>
+                    <button type="submit">Add Document</button>
+                </form>
+            </div>
+            
+            <div class="tab-content" id="viewDocs">
+                <h2>Stored Documents</h2>
+                <div id="documentsList">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chat history
+        let chatHistory = [];
+        
+        // Show selected tab
+        function showTab(tabId, tabElement) {
+            // Update tab states
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Activate selected tab
+            tabElement.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            
+            // Load documents if viewing docs tab
+            if (tabId === 'viewDocs') {
+                loadDocuments();
+            }
+        }
+        
+        // Send a message to the chatbot
+        async function sendMessage() {
+            const userQuestion = document.getElementById('userQuestion').value.trim();
+            if (!userQuestion) return;
+            
+            // Add user message to chat
+            addMessageToChat(userQuestion, 'user');
+            document.getElementById('userQuestion').value = '';
+            
+            try {
+                // Prepare chat history format for API
+                const apiChatHistory = chatHistory.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.content
+                }));
+                
+                // Keep only last 4 messages for context (to save tokens)
+                const contextHistory = apiChatHistory.slice(-4);
+                
+                // Call chat API
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: userQuestion,
+                        chat_history: contextHistory
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error getting response');
+                }
+                
+                const data = await response.json();
+                
+                // Add bot response to chat
+                addMessageToChat(data.answer, 'bot', data.sources);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addMessageToChat('Sorry, there was an error processing your request.', 'bot');
+            }
+        }
+        
+        // Add a message to the chat display
+        function addMessageToChat(message, role, sources = []) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(role === 'user' ? 'user-message' : 'bot-message');
+            
+            // Add message content
+            messageDiv.textContent = message;
+            
+            // Add sources if available
+            if (sources && sources.length > 0) {
+                const sourcesDiv = document.createElement('div');
+                sourcesDiv.classList.add('sources');
+                sourcesDiv.innerHTML = '<strong>Sources:</strong> ' + 
+                    sources.map(s => s.source).join(', ');
+                messageDiv.appendChild(sourcesDiv);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            
+            // Auto scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Add to chat history
+            chatHistory.push({
+                role: role,
+                content: message
+            });
+        }
+        
+        // Load documents from the API
+        async function loadDocuments() {
+            const documentsList = document.getElementById('documentsList');
+            documentsList.innerHTML = 'Loading...';
+            
+            try {
+                // Search with an empty query to get all documents
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: "",
+                        max_results: 100
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error loading documents');
+                }
+                
+                const documents = await response.json();
+                
+                if (documents.length === 0) {
+                    documentsList.innerHTML = '<p>No documents found. Add some economic data first.</p>';
+                    return;
+                }
+                
+                // Display documents
+                documentsList.innerHTML = '';
+                documents.forEach(doc => {
+                    const docDiv = document.createElement('div');
+                    docDiv.classList.add('document-item');
+                    
+                    const sourceHeading = document.createElement('h3');
+                    sourceHeading.textContent = doc.source;
+                    docDiv.appendChild(sourceHeading);
+                    
+                    const content = document.createElement('p');
+                    content.textContent = doc.content.length > 200 ? 
+                        doc.content.substring(0, 200) + '...' : doc.content;
+                    docDiv.appendChild(content);
+                    
+                    documentsList.appendChild(docDiv);
+                });
+                
+            } catch (error) {
+                console.error('Error:', error);
+                documentsList.innerHTML = '<p>Error loading documents: ' + error.message + '</p>';
+            }
+        }
+        
+        // Add event listener for pressing Enter in the input field
+        document.getElementById('userQuestion').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Add welcome message
+        document.addEventListener('DOMContentLoaded', function() {
+            addMessageToChat('Hello! I\'m your economic assistant. Ask me a question about the economy. Remember to add economic data first so I can provide informed answers.', 'bot');
+        });
+    </script>
+</body>
+</html>

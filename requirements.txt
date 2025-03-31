@@ -1,0 +1,24 @@
+# API and web framework
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+jinja2==3.1.3
+python-multipart==0.0.9
+
+# OpenAI for high-quality responses
+openai==1.12.0  # Ensure you're using a recent version
+tiktoken==0.5.0
+
+# Local embedding models (to save tokens)
+sentence-transformers==2.2.2
+torch>=2.0.0  # Use latest available version
+
+# Vector database - Using Qdrant instead of FAISS
+qdrant-client==1.7.3
+numpy>=1.22.0,<2.0.0
+
+# Data validation and processing
+pydantic==1.10.13  # Older version without Rust dependencies
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0

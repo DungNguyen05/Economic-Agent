@@ -1,0 +1,37 @@
+[
+  {
+    "id": "c18987cf-77a6-46c6-b260-080ec4fe8e0e",
+    "content": "The Federal Reserve raised interest rates by 0.25% in September 2023, bringing the federal funds rate to 5.25-5.50%. This was the 11th rate hike since March 2022 as part of the Fed's effort to combat inflation.",
+    "source": "Federal Reserve Press Release, September 2023",
+    "date_added": "2025-03-31T16:44:15.864160",
+    "metadata": {}
+  },
+  {
+    "id": "4deb4b56-1aad-4854-85a3-7355ab4bb9da",
+    "content": "US GDP grew at an annual rate of 2.1% in Q2 2023, showing resilience despite high interest rates. Consumer spending, which accounts for more than two-thirds of U.S. economic activity, increased at a 1.7% rate.",
+    "source": "Bureau of Economic Analysis, Q2 2023 Report",
+    "date_added": "2025-03-31T16:44:17.568341",
+    "metadata": {}
+  },
+  {
+    "id": "a5aa8bc9-9d03-4b71-877a-8befbdbfac3c",
+    "content": "The Consumer Price Index (CPI) increased 3.7% for the 12 months ending September 2023, before seasonal adjustment. The index for all items less food and energy rose 4.1% over the last 12 months.",
+    "source": "Bureau of Labor Statistics, CPI Report October 2023",
+    "date_added": "2025-03-31T16:44:17.616415",
+    "metadata": {}
+  },
+  {
+    "id": "ed1def4b-2305-47fe-be99-25d45b3765fe",
+    "content": "The US unemployment rate stood at 3.8% in September 2023, reflecting a historically tight labor market. The economy added 336,000 jobs in September, significantly exceeding economists' expectations.",
+    "source": "Bureau of Labor Statistics, Employment Report October 2023",
+    "date_added": "2025-03-31T16:44:17.797441",
+    "metadata": {}
+  },
+  {
+    "id": "5c654f2b-6aab-420f-9dea-c0b7f157b239",
+    "content": "The S&P 500 index reached 4,308 at the end of September 2023, representing a 13% increase from the beginning of the year. However, market volatility increased due to concerns about interest rates and inflation.",
+    "source": "Market Summary, Q3 2023",
+    "date_added": "2025-03-31T16:44:17.951258",
+    "metadata": {}
+  }
+]

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  economic-chatbot:
+    build: .
+    container_name: economic-chatbot
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Optional configuration overrides
+      - LOG_LEVEL=INFO
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - OPENAI_CHAT_MODEL=gpt-3.5-turbo
+      - MAX_SEARCH_RESULTS=5
+      - MAX_TOKENS_RESPONSE=500
+      - TEMPERATURE=0.3
+      - RELOAD=false
+      - DEBUG=false
+    volumes:
+      - ./data:/app/data  # Persist data
+    restart: unless-stopped

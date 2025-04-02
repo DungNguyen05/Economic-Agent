@@ -17,19 +17,15 @@ class Chatbot:
         self.model = config.OPENAI_CHAT_MODEL
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
-        # Configure OpenAI client with backwards-compatible initialization
+        # Configure OpenAI client
         try:
-            # Try the newer method first
-            if hasattr(openai, 'OpenAI'):
-                self.client = openai.OpenAI(
-                    api_key=config.OPENAI_API_KEY or ""
-                )
-            else:
-                # Fallback to older method
-                openai.api_key = config.OPENAI_API_KEY or ""
-                self.client = openai
+            # Set API key directly (old style)
+            openai.api_key = config.OPENAI_API_KEY
+            self.client = openai
+            logging.info("OpenAI client initialized successfully")
         except Exception as e:
-            logging.error(f"Error initializing OpenAI client: {e}")
+            logging.error(f"Error initializing OpenAI client: {str(e)}")
+            logging.error(f"API Key length: {len(config.OPENAI_API_KEY) if config.OPENAI_API_KEY else 0}")
             self.client = None
         
         if not config.OPENAI_API_KEY:
@@ -92,25 +88,18 @@ Context information:
             if not config.OPENAI_API_KEY:
                 raise ValueError("OpenAI API key is not set. Cannot generate response.")
             
-            # Handle different OpenAI library versions
-            if hasattr(self.client, 'chat') and hasattr(self.client.chat, 'completions'):
-                # Newer OpenAI library version
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=config.TEMPERATURE,
-                    max_tokens=config.MAX_TOKENS_RESPONSE
-                )
-                answer = response.choices[0].message.content
-            else:
-                # Older OpenAI library version
-                response = self.client.ChatCompletion.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=config.TEMPERATURE,
-                    max_tokens=config.MAX_TOKENS_RESPONSE
-                )
-                answer = response['choices'][0]['message']['content']
+            if self.client is None:
+                raise ValueError("OpenAI client is not initialized properly.")
+            
+            # Use the OpenAI client to generate a response (old style)
+            response = self.client.ChatCompletion.create(
+                model=self.model,
+                messages=messages,
+                temperature=config.TEMPERATURE,
+                max_tokens=config.MAX_TOKENS_RESPONSE
+            )
+            
+            answer = response['choices'][0]['message']['content']
             
             # Return the answer and sources
             sources = [{"id": doc["id"], "source": doc["source"]} for doc in relevant_docs]

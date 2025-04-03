@@ -4,8 +4,9 @@ import shutil
 import logging
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-from langchain.vectorstores import Qdrant
-from langchain.schema import Document
+from langchain_community.vectorstores import Qdrant
+from langchain_core.documents import Document
+
 
 import config
 from rag.embeddings import EmbeddingsManager

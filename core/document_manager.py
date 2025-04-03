@@ -3,7 +3,8 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
+
 
 import config
 from core.utils import generate_id, get_current_timestamp, save_json, load_json

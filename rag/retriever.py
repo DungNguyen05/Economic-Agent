@@ -1,7 +1,8 @@
 # rag/retriever.py - Advanced retrieval strategies
 import logging
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import LLMChainExtractor
+# Change this import
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors.chain_extract import LLMChainExtractor
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 

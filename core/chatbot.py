@@ -2,14 +2,17 @@
 import logging
 from typing import List, Dict, Tuple, Optional
 import tiktoken
-from langchain.chat_models import ChatOpenAI
-from langchain.callbacks import get_openai_callback
+from langchain_community.chat_models import ChatOpenAI
+from langchain_community.callbacks import get_openai_callback
+from langchain_openai import ChatOpenAI
 
 import config
 from rag.retriever import AdvancedRetriever
 from rag.chains import RAGChainManager
 
 logger = logging.getLogger(__name__)
+
+
 
 class Chatbot:
     """Economic chatbot with advanced RAG"""

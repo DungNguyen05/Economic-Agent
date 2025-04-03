@@ -2,7 +2,7 @@
 import os
 import logging
 import torch
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 import config
 

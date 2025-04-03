@@ -1,7 +1,8 @@
 # example_data.py - Example economic data for initial setup
 import logging
 from typing import List, Dict
-from vector_store import VectorStore
+
+logger = logging.getLogger(__name__)
 
 def get_example_data() -> List[Dict]:
     """Return a list of example economic data documents"""
@@ -28,13 +29,13 @@ def get_example_data() -> List[Dict]:
         }
     ]
 
-def load_example_data(vector_store: VectorStore) -> None:
-    """Load example data into the vector store if it's empty"""
-    # Only load if the store is empty
-    if len(vector_store.documents) == 0:
-        logging.info("Adding example economic data to vector store...")
+def load_example_data(document_manager) -> None:
+    """Load example data into the document manager if it's empty"""
+    # Only load if there are no documents
+    if len(document_manager.documents) == 0:
+        logger.info("Adding example economic data...")
         example_data = get_example_data()
-        doc_ids = vector_store.bulk_add_documents(example_data)
-        logging.info(f"Added {len(doc_ids)} example documents")
+        doc_ids = document_manager.bulk_add_documents(example_data)
+        logger.info(f"Added {len(doc_ids)} example documents")
     else:
-        logging.info("Vector store already contains documents, skipping example data loading")
+        logger.info("Document store already contains documents, skipping example data loading")

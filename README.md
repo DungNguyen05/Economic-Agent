@@ -1,46 +1,37 @@
-# Economic Chatbot with Hybrid RAG
+# Economic Chatbot with Advanced RAG
 
-This is a Python-based economic chatbot that uses a hybrid Retrieval-Augmented Generation (RAG) approach to answer questions about economics. The system uses local embeddings to efficiently store documents and OpenAI's language models for high-quality responses.
+A Python-based economic chatbot that uses advanced Retrieval-Augmented Generation (RAG) techniques powered by Langchain to answer questions about economics. The system uses local embeddings to efficiently store documents and OpenAI's language models for high-quality responses.
 
 ## Features
 
-- **Hybrid RAG Implementation**: Local embeddings for storage + OpenAI for responses
+- **Advanced RAG Implementation**: Document chunking, query expansion, and contextual compression
 - **Token Optimization**: Significantly reduces OpenAI API usage by only using tokens for responses
-- **Vector Search**: Uses Qdrant for efficient similarity search (scale to thousands of documents)
+- **Vector Search**: Uses Qdrant with Langchain for efficient similarity search (scale to thousands of documents)
 - **Document Management**: Add, view, and search economic documents
 - **Web Interface**: User-friendly chat interface with document management
 - **REST API**: Complete API for integration with other applications
 - **Environment-based Configuration**: Easy configuration through environment variables
 
-## Advantages of Hybrid Approach
+## Architecture
 
-This application uses a cost-effective hybrid architecture:
+This application uses a sophisticated hybrid architecture:
 
 1. **Local Embeddings** (Sentence Transformers)
    - Document vectorization runs locally without API calls
    - Saves tokens for each document you add
    - Uses the efficient "all-MiniLM-L6-v2" model by default
+   - Configurable with different embedding models
 
 2. **OpenAI Responses**
    - High-quality, nuanced answers from GPT models
    - Only uses tokens when generating responses
    - Properly formats prompts with retrieved context
 
-3. **Token Savings**:
-   - Eliminate token usage for document storage/embedding
-   - Pay only for tokens used in actual chat responses
-   - For large knowledge bases, savings can be substantial
-
-## Why Qdrant?
-
-Qdrant is an excellent vector database choice for this economic chatbot, especially when handling thousands of economic articles:
-
-1. **Easy to Install**: Simple pip installation, no complex C++ dependencies like FAISS
-2. **High Performance**: Efficiently handles thousands to millions of vectors
-3. **Persistence**: Built-in storage management with automatic persistence
-4. **Filtering**: Advanced metadata filtering beyond simple vector similarity
-5. **Production Ready**: Runs in-memory for development or can be deployed as a service
-6. **Active Development**: Well-maintained with regular updates and improvements
+3. **Advanced RAG Techniques**
+   - Semantic document chunking for better context preservation
+   - Query expansion to bridge vocabulary gaps
+   - Context compression to focus on relevant information
+   - Conversation history awareness for better continuity
 
 ## Project Structure
 
@@ -49,22 +40,37 @@ economic_chatbot/
 │
 ├── app.py                    # Main FastAPI application
 ├── config.py                 # Configuration with environment variables
-├── models.py                 # API data models
-├── vector_store.py           # Vector database using Qdrant
-├── chatbot.py                # Chat functionality using OpenAI
-├── utils.py                  # Utility functions
 ├── example_data.py           # Example economic data
-├── templates_manager.py      # Templates verification
+│
+├── rag/                      # RAG components 
+│   ├── __init__.py           # Package initialization
+│   ├── embeddings.py         # Manages embedding models
+│   ├── vector_store.py       # Qdrant vector storage
+│   ├── retriever.py          # Advanced retrieval strategies
+│   └── chains.py             # LLM chains for RAG
+│
+├── core/                     # Core application logic
+│   ├── __init__.py           # Package initialization
+│   ├── chatbot.py            # Main chatbot implementation
+│   ├── document_manager.py   # Document handling
+│   └── utils.py              # Utility functions
+│
+├── api/                      # API endpoints
+│   ├── __init__.py           # Package initialization
+│   ├── models.py             # API data models
+│   ├── routes.py             # API route handlers
+│   └── dependencies.py       # FastAPI dependencies
+│
+├── web/                      # Web interface
+│   ├── __init__.py           # Package initialization
+│   ├── routes.py             # Web routes
+│   └── templates_manager.py  # Templates verification
 │
 ├── templates/                # HTML templates
 │   └── index.html            # Main interface template
 │
 ├── static/                   # Static files
 │   └── styles.css            # CSS styles
-│
-├── data/                     # Data storage (auto-created)
-│   ├── qdrant_storage/       # Qdrant vector database files
-│   └── documents.json        # Document metadata
 │
 ├── .env.example              # Example environment variables
 ├── Dockerfile                # Docker configuration
@@ -82,9 +88,9 @@ economic_chatbot/
    cd economic-chatbot
    ```
 
-2. Create a virtual environment:
+2. Create a virtual environment with Python 3.11:
    ```
-   python -m venv venv
+   python3.11 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
@@ -96,7 +102,8 @@ economic_chatbot/
 4. Set up configuration:
    ```
    # Create a .env file with your OpenAI API key
-   echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+   cp .env.example .env
+   # Edit the .env file and add your OpenAI API key
    ```
 
 5. Run the application:
@@ -126,6 +133,42 @@ economic_chatbot/
 
 3. Access the web interface at [http://localhost:8000](http://localhost:8000)
 
+## Configuration Options
+
+The application is highly configurable through environment variables:
+
+### Embedding Model Selection
+
+```
+# Options:
+# - all-MiniLM-L6-v2 (fast, good quality, default)
+# - multi-qa-mpnet-base-dot-v1 (better quality, more resource intensive)
+# - all-mpnet-base-v2 (best quality, more resource intensive)
+# - paraphrase-multilingual-mpnet-base-v2 (for multilingual support)
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+```
+
+### RAG Settings
+
+```
+# Document chunking
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
+
+# Advanced RAG features
+USE_QUERY_EXPANSION=true
+USE_RERANKING=true
+```
+
+### OpenAI Settings
+
+```
+OPENAI_API_KEY=your_api_key_here
+OPENAI_CHAT_MODEL=gpt-3.5-turbo
+MAX_TOKENS_RESPONSE=500
+TEMPERATURE=0.3
+```
+
 ## Usage
 
 ### Adding Economic Data
@@ -134,45 +177,10 @@ economic_chatbot/
 2. Use the "Add Document" tab to add economic data
 3. Provide a source and content for the document
 
-### Adding Thousands of Articles
-
-For bulk loading thousands of economic articles, you can use the API:
-
-```python
-import requests
-import json
-
-def add_article(content, source, metadata=None):
-    response = requests.post(
-        "http://localhost:8000/api/documents",
-        json={
-            "content": content,
-            "source": source,
-            "metadata": metadata or {}
-        }
-    )
-    return response.json()
-
-# Example batch processing from a large dataset
-with open("economic_articles.json", "r") as f:
-    articles = json.load(f)
-    
-for article in articles:
-    add_article(
-        content=article["text"],
-        source=article["source"],
-        metadata={
-            "date": article["date"],
-            "author": article["author"],
-            "category": article["category"]
-        }
-    )
-```
-
 ### Asking Questions
 
 1. Type your economic question in the chat input
-2. The chatbot will retrieve relevant information using local embeddings
+2. The chatbot will retrieve relevant information using advanced RAG techniques
 3. OpenAI will generate a high-quality response based on the retrieved documents
 4. Sources used to answer the question will be displayed with the response
 
@@ -194,13 +202,35 @@ curl -X POST "http://localhost:8000/api/chat" \
 For production environments with thousands of articles:
 
 1. **Resource Consideration**: Ensure sufficient memory for embeddings (approximately 1GB per 50,000 articles)
-2. **Deployment Options**:
+2. **Model Selection**: Choose the embedding model based on your quality/performance needs
+3. **Chunking Strategy**: Adjust chunk size and overlap based on your document types
+4. **Deployment Options**:
    - Docker Compose for simple deployments
-   - Kubernetes for large-scale deployments with multiple replicas
-3. **Optimizations**:
-   - Configure Qdrant for disk-based storage for very large collections
-   - Implement batched indexing for initial bulk loading
-   - Consider sharding for collections over 10 million vectors
+   - Kubernetes for large-scale deployments
+
+## Advanced RAG Techniques
+
+This implementation includes several advanced RAG techniques:
+
+1. **Semantic Document Chunking**
+   - Documents are intelligently split using RecursiveCharacterTextSplitter
+   - Preserves semantic relationships between text sections
+   - Configurable chunk size and overlap
+
+2. **Query Transformation**
+   - Transforms user questions into more effective search queries
+   - Bridges vocabulary gaps between questions and documents
+   - Uses LLM to identify key economic concepts
+
+3. **Context Compression**
+   - Extracts the most relevant passages from retrieved documents
+   - Removes redundant or irrelevant information
+   - Focuses the context provided to the LLM
+
+4. **Conversational Context**
+   - Maintains chat history for better continuity
+   - Incorporates previous exchanges into retrieval process
+   - Automatically manages token usage by limiting history length
 
 ## License
 

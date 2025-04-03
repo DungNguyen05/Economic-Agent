@@ -1,4 +1,4 @@
-# utils.py - Utility functions
+# core/utils.py - Utility functions
 import uuid
 import json
 import tiktoken
@@ -37,13 +37,6 @@ def truncate_text(text: str, max_length: int = 200) -> str:
     if len(text) <= max_length:
         return text
     return text[:max_length] + "..."
-
-def format_context(docs: List[Dict[str, Any]]) -> str:
-    """Format documents into context string for the LLM"""
-    context_parts = []
-    for i, doc in enumerate(docs):
-        context_parts.append(f"[{i+1}] Source: {doc['source']}\n{doc['content']}")
-    return "\n\n".join(context_parts)
 
 def format_chat_history(history: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """Format chat history for OpenAI API"""

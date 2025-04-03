@@ -1,4 +1,4 @@
-# models.py - Pydantic models for API requests and responses
+# api/models.py - Pydantic models for API requests and responses
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 

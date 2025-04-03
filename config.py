@@ -69,8 +69,25 @@ DOCUMENTS_FILE = DATA_DIR / "documents.json"
 # Embedding model configuration
 # Use local sentence-transformers for embeddings (to save tokens)
 USE_LOCAL_EMBEDDINGS = _parse_bool(os.getenv("USE_LOCAL_EMBEDDINGS", "true"))
+
 # Default to all-MiniLM-L6-v2 which is fast and good quality
+# Alternative models to consider:
+# - "multi-qa-mpnet-base-dot-v1" (better quality, more resource intensive)
+# - "all-mpnet-base-v2" (best quality, more resource intensive)
+# - "all-MiniLM-L6-v2" (fast, good quality, default)
+# - "paraphrase-multilingual-mpnet-base-v2" (for multilingual support)
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+
+# Advanced RAG configuration
+# Text chunking settings
+CHUNK_SIZE = _parse_int(os.getenv("CHUNK_SIZE"), 1000)
+CHUNK_OVERLAP = _parse_int(os.getenv("CHUNK_OVERLAP"), 200)
+
+# Query transformation settings
+USE_QUERY_EXPANSION = _parse_bool(os.getenv("USE_QUERY_EXPANSION", "true"))
+
+# Reranking settings
+USE_RERANKING = _parse_bool(os.getenv("USE_RERANKING", "true"))
 
 # LLM configuration
 # Use OpenAI for chat completions (for best quality responses)

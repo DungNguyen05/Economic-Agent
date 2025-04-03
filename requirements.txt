@@ -6,15 +6,20 @@ python-multipart==0.0.6
 
 # OpenAI for high-quality responses
 openai==1.12.0
+<<<<<<< HEAD
 tiktoken>=0.5.2,<0.6.0
+=======
+tiktoken==0.5.0
+>>>>>>> e0aa9f89e63e584a986325f1e243d2846db1a77b
 
 # Numpy and scientific computing
-numpy==1.24.3
+numpy==1.24.3  # Downgraded for better compatibility
+scipy==1.10.1  # Added explicit scipy version
 
 # Local embedding models (to save tokens)
 huggingface-hub==0.19.4
 sentence-transformers==2.2.2
-torch>=2.0.0,<2.2.0
+torch==2.0.1  # Pinned to a specific version
 
 # Vector database - Using Qdrant
 qdrant-client==1.6.4  # Compatible with pydantic 1.x

@@ -1,6 +1,7 @@
-# api/routes.py - API routes for the economic chatbot
+# api/routes.py - Updated API routes with session support
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Cookie, Response
+import uuid
 
 from api.models import (
     DocumentInput, DocumentResponse, Query, 
@@ -59,12 +60,26 @@ async def search_documents(
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    response: Response,
     chatbot=Depends(get_chatbot),
-    api_key: str = Depends(validate_openai_key)
+    api_key: str = Depends(validate_openai_key),
+    session_id: str = Cookie(None)
 ):
-    """Chat with the economic assistant using Langchain RAG"""
+    """Chat with the assistant using Langchain RAG"""
     try:
-        answer, sources = chatbot.generate_answer(request.question, request.chat_history)
+        # Create or use session ID for maintaining chat context
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            response.set_cookie(key="session_id", value=session_id, httponly=True)
+            logger.info(f"Created new session: {session_id}")
+        
+        # Generate answer using the chatbot
+        answer, sources = chatbot.generate_answer(
+            request.question, 
+            request.chat_history, 
+            session_id
+        )
+        
         return {"answer": answer, "sources": sources}
     except Exception as e:
         logger.error(f"Error generating chat response: {e}")

@@ -38,8 +38,8 @@ This chatbot uses a sophisticated hybrid architecture:
 ### Prerequisites
 
 - Python 3.10+
-- OpenAI API key
-- Vector database support (Qdrant)
+- OpenAI API key (the only external dependency)
+- Everything else runs locally
 
 ### Installation
 
@@ -63,15 +63,21 @@ This chatbot uses a sophisticated hybrid architecture:
 4. Configure your environment:
    ```
    cp .env.example .env
-   # Edit .env to add your OpenAI API key
+   # Edit .env to add your OpenAI API key (OPENAI_API_KEY=your_key_here)
    ```
 
-5. Run the application:
+5. Run the application locally:
    ```
    python app.py
    ```
 
 6. Access the web interface at [http://localhost:8000](http://localhost:8000)
+
+The application uses:
+- Local embedding models with sentence-transformers
+- Local vector database (Qdrant) stored in the data directory
+- Local file storage for documents
+- OpenAI API (the only external service) for generating responses
 
 ## Usage
 
@@ -98,31 +104,46 @@ This chatbot uses a sophisticated hybrid architecture:
 
 ## Implementation Details
 
-### Memory Management
+## Storage Implementation
 
-The chatbot uses a multi-layered approach to memory:
+The application uses several local storage mechanisms:
 
-```
-Server-side session storage
-↓
-HTTP cookie tracking
-↓
-Client-side localStorage backup
-```
+### 1. In-Memory Session Storage
+- Conversation histories are stored in Python dictionaries within the server process
+- Located in `core/chatbot.py` as `self.session_histories` dictionary
+- This memory persists only while the server is running
+- No database required for this storage
 
-This ensures robust persistence across different scenarios:
-- Browser refreshes
-- Tab closures
-- Server restarts
+### 2. Document Storage
+- Document metadata is stored in a local JSON file (`data/documents.json`)
+- Document content is stored in the local vector database
+- Managed by the `DocumentManager` class in `core/document_manager.py`
+- All files are saved in your local file system
+
+### 3. Vector Database Storage
+- Uses Qdrant vector database running in local mode (no separate server)
+- Vector database files stored in `data/qdrant_storage/`
+- Embeddings generated locally using sentence-transformers
+- Completely self-contained with no external database connections
+
+### 4. Client-Side Storage
+- Browser localStorage stores conversation history as backup
+- HTTP cookies track the session ID between page loads
+- All client storage happens in your browser
+
+When you run the application, all data remains on your machine. The "server" in this context is just the local Python application running on your computer - there is no remote server involved except when generating responses via OpenAI's API.
 
 ### RAG Optimization
 
-The system uses an intelligent approach to RAG:
+The system uses an intelligent approach to RAG, with all retrieval happening locally:
 
 1. Evaluates query complexity to determine if RAG is needed
-2. Only retrieves documents for domain-specific questions
+2. Only retrieves documents for domain-specific questions from local vector store
 3. Uses general knowledge for common questions
-4. Falls back to general knowledge if documents don't provide a good answer
+4. Falls back to general knowledge if local documents don't provide a good answer
+
+The vector embeddings are generated locally using sentence-transformers, and 
+document storage is handled by a local Qdrant instance that runs within the application.
 
 ### Token Efficiency
 
@@ -149,36 +170,41 @@ MAX_CONTEXT_LENGTH = 4000    # Maximum context window size
 ```
 economic_chatbot/
 │
-├── app.py                    # Main FastAPI application
+├── app.py                    # Main FastAPI application (runs locally)
 ├── config.py                 # Configuration settings
 ├── ALGORITHM.md              # Algorithm documentation
 │
 ├── core/                     # Core application logic
-│   ├── chatbot.py            # Main chatbot with memory
-│   ├── document_manager.py   # Document handling
+│   ├── chatbot.py            # Main chatbot with memory (local storage)
+│   ├── document_manager.py   # Document handling (local files)
 │   └── utils.py              # Utility functions
 │
-├── rag/                      # RAG components
+├── rag/                      # Local RAG components
 │   ├── chains.py             # LLM chains for RAG
-│   ├── embeddings.py         # Embedding models
-│   ├── retriever.py          # Retrieval strategies
-│   └── vector_store.py       # Vector database
+│   ├── embeddings.py         # Local embedding models
+│   ├── retriever.py          # Local retrieval strategies
+│   └── vector_store.py       # Local vector database
 │
-├── api/                      # API endpoints
+├── api/                      # Local API endpoints
 │   ├── models.py             # API data models
 │   ├── routes.py             # API route handlers
 │   └── dependencies.py       # FastAPI dependencies
 │
-├── static/                   # Static files
+├── static/                   # Static files (served locally)
 │   ├── chat.js               # Chat functionality
 │   └── styles.css            # CSS styles
 │
-├── templates/                # HTML templates
+├── templates/                # HTML templates (rendered locally)
 │   └── index.html            # Main interface
 │
-└── data/                     # Data storage
-    └── qdrant_storage/       # Vector database files
+└── data/                     # Local data storage
+    ├── qdrant_storage/       # Local vector database files
+    ├── documents.json        # Local document metadata storage
+    └── transformers_cache/   # Local model cache for embeddings
 ```
+
+All components run locally on your machine, with the only external dependency being 
+the OpenAI API for generating the final text responses.
 
 ## Troubleshooting
 

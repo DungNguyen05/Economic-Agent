@@ -1,7 +1,7 @@
-# core/chatbot.py - Enhanced Chatbot implementation with general capability
+# core/chatbot.py - Enhanced Chatbot implementation with memory management
 
 import logging
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 import tiktoken
 from langchain_community.callbacks import get_openai_callback
 from langchain_openai import ChatOpenAI
@@ -16,7 +16,7 @@ from rag.chains import RAGChainManager
 logger = logging.getLogger(__name__)
 
 class Chatbot:
-    """Enhanced economic chatbot with RAG and general capability"""
+    """Enhanced economic chatbot with RAG, general capability and conversation memory"""
     
     def __init__(self, document_manager, vector_store):
         """Initialize the chatbot with necessary components"""
@@ -66,9 +66,9 @@ class Chatbot:
                 Chat History:
                 {chat_history}
                 
-                Question: {question}
+                Current Question: {question}
                 
-                Answer:
+                Think about the context of the conversation and provide a relevant, helpful answer:
                 """
                 
                 general_prompt = PromptTemplate(
@@ -106,35 +106,115 @@ class Chatbot:
         # Keep only the last 5 interactions to manage token usage
         if len(self.session_histories[session_id]) > 5:
             self.session_histories[session_id] = self.session_histories[session_id][-5:]
+        
+        logger.info(f"Updated session history for {session_id}, now has {len(self.session_histories[session_id])} messages")
+    
+    def _format_conversation_history(self, history: List[Tuple[str, str]]) -> str:
+        """Format conversation history into a readable string format"""
+        formatted_history = ""
+        for i, (user_msg, ai_msg) in enumerate(history):
+            if user_msg and ai_msg:
+                formatted_history += f"User: {user_msg}\nAssistant: {ai_msg}\n\n"
+            elif user_msg:
+                formatted_history += f"User: {user_msg}\n\n"
+        return formatted_history.strip()
+    
+    def _merge_histories(self, 
+                         session_history: List[Tuple[str, str]], 
+                         provided_history: List[Dict[str, str]]) -> List[Tuple[str, str]]:
+        """Merge session history with provided history, avoiding duplicates"""
+        # Format incoming chat history
+        formatted_history = []
+        if provided_history:
+            for msg in provided_history:
+                if msg["role"] == "user":
+                    user_content = msg["content"]
+                    ai_content = ""  # Default empty assistant response
+                    
+                    # Check if the next message is from assistant
+                    next_index = provided_history.index(msg) + 1
+                    if next_index < len(provided_history) and provided_history[next_index]["role"] == "assistant":
+                        ai_content = provided_history[next_index]["content"]
+                    
+                    formatted_history.append((user_content, ai_content))
+        
+        # Merge histories, avoiding duplicates
+        merged_history = []
+        seen_pairs = set()
+        
+        # First add session history
+        for pair in session_history:
+            if pair[0]:  # Only add if user message exists
+                pair_hash = hash((pair[0], pair[1]))
+                if pair_hash not in seen_pairs:
+                    seen_pairs.add(pair_hash)
+                    merged_history.append(pair)
+        
+        # Then add formatted history if not duplicate
+        for pair in formatted_history:
+            if pair[0]:  # Only add if user message exists
+                pair_hash = hash((pair[0], pair[1]))
+                if pair_hash not in seen_pairs:
+                    seen_pairs.add(pair_hash)
+                    merged_history.append(pair)
+        
+        return merged_history
+    
+    def _evaluate_query_complexity(self, question: str) -> bool:
+        """Evaluate if the query is complex and needs context from RAG"""
+        # Simple heuristic: Check if the question is longer or contains specific keywords
+        economic_keywords = ["economy", "inflation", "gdp", "interest rates", "federal reserve", 
+                             "market", "recession", "economic", "fiscal", "monetary"]
+        
+        # Check for economic keywords
+        if any(keyword in question.lower() for keyword in economic_keywords):
+            return True
+        
+        # Check if it's a follow-up question referencing previous context
+        followup_indicators = ["previous", "earlier", "you mentioned", "you said", "above", 
+                               "what about", "how about", "tell me more", "elaborate"]
+        if any(indicator in question.lower() for indicator in followup_indicators):
+            return True
+            
+        return False
+    
+    def _count_tokens(self, text: str) -> int:
+        """Count the number of tokens in a text string using the tokenizer"""
+        return len(self.tokenizer.encode(text))
     
     def generate_answer(self, 
                         question: str, 
                         chat_history: Optional[List[Dict]] = None, 
                         session_id: str = "default") -> Tuple[str, List[Dict]]:
-        """Generate an answer using either RAG or general knowledge"""
-        # Format incoming chat history
-        formatted_history = []
-        if chat_history:
-            for msg in chat_history:
-                if msg["role"] == "user":
-                    formatted_history.append((msg["content"], ""))
-                elif msg["role"] == "assistant" and len(formatted_history) > 0:
-                    # Update the last item's response
-                    last_query, _ = formatted_history[-1]
-                    formatted_history[-1] = (last_query, msg["content"])
-        
-        # Get current session history and merge with formatted history
+        """Generate an answer using either RAG or general knowledge based on query needs"""
+        # Get current session history
         session_history = self.get_session_history(session_id)
-        merged_history = session_history + [pair for pair in formatted_history if pair not in session_history]
         
-        # Use only the most recent chat history to save tokens
+        # Merge with provided history
+        merged_history = self._merge_histories(session_history, chat_history or [])
+        
+        # Use only the most recent chat history to save tokens (up to 5 interactions)
         recent_history = merged_history[-5:] if len(merged_history) > 5 else merged_history
         
+        # Format history for context
+        history_text = self._format_conversation_history(recent_history)
+        
+        # Log token usage for history
+        history_tokens = self._count_tokens(history_text)
+        logger.info(f"Chat history uses {history_tokens} tokens")
+        
         try:
-            # First try to answer with documents if available
+            # Decision logic: Determine if we need RAG or can use general knowledge
             have_documents = len(self.document_manager.get_all_documents()) > 0
+            needs_rag = have_documents and self._evaluate_query_complexity(question)
             
-            if have_documents:
+            # Track the answer and sources
+            answer = ""
+            sources = []
+            
+            # First try to answer with documents if available and query seems to need it
+            if needs_rag:
+                logger.info("Using RAG for this query")
                 # Use callback to track token usage
                 with get_openai_callback() as cb:
                     # Get response from RAG chain
@@ -148,7 +228,6 @@ class Chatbot:
                 source_docs = response.get("source_documents", [])
                 
                 # Extract source information from documents
-                sources = []
                 seen_doc_ids = set()
                 
                 for doc in source_docs:
@@ -163,44 +242,47 @@ class Chatbot:
                             "source": source
                         })
                 
-                # If we got a good answer with sources, use it
-                if sources and "I don't have enough information" not in answer and "don't have specific information" not in answer:
-                    # Update session history with this interaction
-                    self.update_session_history(session_id, question, answer)
-                    return answer, sources
-            
-            # If no documents or RAG didn't provide a good answer, use general knowledge
-            if self.general_chain:
-                # Format history for general chain
-                history_text = ""
-                for i, (q, a) in enumerate(recent_history):
-                    history_text += f"User: {q}\nAssistant: {a}\n\n"
+                # Check if RAG gave a good answer (has sources and doesn't indicate insufficient info)
+                is_good_rag_answer = (
+                    sources and 
+                    "I don't have enough information" not in answer and 
+                    "don't have specific information" not in answer
+                )
                 
+                # If RAG didn't provide a good answer, fall back to general knowledge
+                if not is_good_rag_answer:
+                    logger.info("RAG didn't provide a good answer, falling back to general knowledge")
+                    needs_rag = False
+            
+            # Use general knowledge if not using RAG or if RAG failed
+            if not needs_rag:
+                logger.info("Using general knowledge for this query")
                 # Use callback to track token usage
                 with get_openai_callback() as cb:
-                    general_response = self.general_chain.run(
+                    answer = self.general_chain.run(
                         chat_history=history_text,
                         question=question
                     )
                     
                     # Log token usage
                     logger.info(f"General tokens used: {cb.total_tokens} (Prompt: {cb.prompt_tokens}, Completion: {cb.completion_tokens})")
-                
-                # Update session history with this interaction
-                self.update_session_history(session_id, question, general_response)
-                
-                return general_response, []
+                    
+                # Clear sources since we're not using RAG
+                sources = []
             
-            # Fallback message if both methods fail
-            fallback_message = "I'm sorry, I don't have enough information to answer that question."
-            if not config.OPENAI_API_KEY:
-                fallback_message = "OpenAI API key is not set. Cannot generate response."
+            # Update session history with this interaction
+            self.update_session_history(session_id, question, answer)
             
-            return fallback_message, []
+            return answer, sources
             
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
-            return f"I'm sorry, there was an error processing your request: {str(e)}", []
+            error_message = f"I'm sorry, there was an error processing your request: {str(e)}"
+            
+            # Still update history with the error to maintain continuity
+            self.update_session_history(session_id, question, error_message)
+            
+            return error_message, []
     
     def process_feedback(self, question: str, answer: str, feedback: str, relevant_docs: List[Dict]) -> None:
         """Process user feedback on answers (for future improvement)"""

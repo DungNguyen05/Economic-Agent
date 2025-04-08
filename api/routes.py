@@ -1,7 +1,8 @@
-# api/routes.py - Updated API routes with session support
+# api/routes.py - Updated API routes with robust session support
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Cookie, Response
 import uuid
+from typing import Optional
 
 from api.models import (
     DocumentInput, DocumentResponse, Query, 
@@ -63,17 +64,25 @@ async def chat(
     response: Response,
     chatbot=Depends(get_chatbot),
     api_key: str = Depends(validate_openai_key),
-    session_id: str = Cookie(None)
+    session_id: Optional[str] = Cookie(None)
 ):
-    """Chat with the assistant using Langchain RAG"""
+    """Chat with the assistant using Langchain RAG with session management"""
     try:
         # Create or use session ID for maintaining chat context
         if not session_id:
             session_id = str(uuid.uuid4())
-            response.set_cookie(key="session_id", value=session_id, httponly=True)
+            response.set_cookie(
+                key="session_id", 
+                value=session_id, 
+                httponly=True,
+                max_age=3600*24*7,  # 7 day cookie
+                samesite="lax"
+            )
             logger.info(f"Created new session: {session_id}")
+        else:
+            logger.info(f"Using existing session: {session_id}")
         
-        # Generate answer using the chatbot
+        # Generate answer using the chatbot with session context
         answer, sources = chatbot.generate_answer(
             request.question, 
             request.chat_history, 
@@ -106,3 +115,39 @@ async def delete_document(
     if not success:
         raise HTTPException(status_code=404, detail="Document not found or could not be deleted")
     return {"message": "Document deleted successfully"}
+
+@router.get("/session")
+async def get_session_info(
+    session_id: Optional[str] = Cookie(None),
+    chatbot=Depends(get_chatbot)
+):
+    """Get information about the current session"""
+    if not session_id:
+        return {"has_session": False, "message": "No active session"}
+    
+    # Get session history
+    history = chatbot.get_session_history(session_id)
+    message_count = len(history)
+    
+    return {
+        "has_session": True,
+        "session_id": session_id,
+        "message_count": message_count
+    }
+
+@router.delete("/session")
+async def clear_session(
+    response: Response,
+    session_id: Optional[str] = Cookie(None),
+    chatbot=Depends(get_chatbot)
+):
+    """Clear the current session history"""
+    if session_id and session_id in chatbot.session_histories:
+        # Clear the session history
+        chatbot.session_histories[session_id] = []
+        logger.info(f"Cleared session history for {session_id}")
+        
+    # Clear the cookie
+    response.delete_cookie(key="session_id")
+    
+    return {"message": "Session cleared successfully"}

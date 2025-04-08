@@ -28,12 +28,15 @@ class RAGChainManager:
     def _create_qa_chain(self):
         """Create an enhanced question answering chain with better prompting"""
         qa_template = """
-        You are a helpful assistant that can answer a wide range of questions, with special knowledge about economics.
+        You are a helpful assistant that can answer questions about economics and general topics.
         
-        Use the following pieces of retrieved context to answer the question. The context contains economic information from various sources.
-        If you don't find enough information in the context, feel free to use your general knowledge to provide a helpful response.
+        Use the following pieces of retrieved context to answer the question. The context contains information from various sources.
         
-        When using information from the context, cite sources by their numbers [1], [2], etc. If using general knowledge, there's no need to cite.
+        If the context provides the information needed to answer the question, use it to give a complete and accurate response.
+        If the context doesn't contain enough information, use your general knowledge to provide a helpful answer.
+        
+        When using information from the context, cite your sources by referencing them like this: [Source: Title].
+        When using your general knowledge, no citation is needed.
         
         Context:
         {context}
@@ -41,9 +44,9 @@ class RAGChainManager:
         Chat History:
         {chat_history}
         
-        Question: {question}
+        Current Question: {question}
         
-        Answer:
+        Answer the question based on the context and chat history, maintaining continuity with previous messages:
         """
         
         qa_prompt = PromptTemplate(
@@ -92,7 +95,7 @@ class RAGChainManager:
             # Prepare chat history for the chain
             formatted_history = self._format_chat_history(chat_history)
             
-            # Get response from conversation chain
+            # Get response from conversation chain with error handling
             response = self.conversation_chain({
                 "question": question,
                 "chat_history": formatted_history

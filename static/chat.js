@@ -1,8 +1,15 @@
-// Enhanced chat functionality for templates/index.html
+// static/chat.js - Enhanced chat functionality with persistent history
 
-// Chat history
+// Chat history array
 let chatHistory = [];
 
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadChatHistory();
+    setupEventListeners();
+});
+
+// Add document to knowledge base
 async function addDocument(event) {
     event.preventDefault();
     const sourceInput = document.getElementById('source');
@@ -87,13 +94,7 @@ async function sendMessage() {
         const typingDiv = addTypingIndicator();
         
         // Prepare chat history format for API
-        const apiChatHistory = chatHistory.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'assistant',
-            content: msg.content
-        }));
-        
-        // Keep up to last 10 messages for context
-        const contextHistory = apiChatHistory.slice(-10);
+        const apiChatHistory = formatChatHistoryForAPI();
         
         // Call chat API
         const response = await fetch('/api/chat', {
@@ -103,7 +104,7 @@ async function sendMessage() {
             },
             body: JSON.stringify({
                 question: userQuestion,
-                chat_history: contextHistory
+                chat_history: apiChatHistory
             })
         });
         
@@ -125,6 +126,15 @@ async function sendMessage() {
         document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
         addMessageToChat('Sorry, there was an error processing your request.', 'bot');
     }
+}
+
+// Format chat history for API request
+function formatChatHistoryForAPI() {
+    // Format the chat history for the API with proper role labels
+    return chatHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+    }));
 }
 
 // Add typing indicator
@@ -172,12 +182,19 @@ function addMessageToChat(message, role, sources = []) {
     // Add to chat history
     chatHistory.push({
         role: role,
-        content: message
+        content: message,
+        sources: sources
     });
     
     // Save chat history to localStorage for persistence
+    saveChatHistory();
+}
+
+// Save chat history to localStorage
+function saveChatHistory() {
     try {
         localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        console.log('Chat history saved to localStorage');
     } catch (e) {
         console.warn('Could not save chat history to localStorage', e);
     }
@@ -236,8 +253,78 @@ async function loadDocuments() {
     }
 }
 
-// Add event listener for pressing Enter in the input field
+// Load chat history from localStorage
+function loadChatHistory() {
+    try {
+        const savedHistory = localStorage.getItem('chatHistory');
+        if (savedHistory) {
+            chatHistory = JSON.parse(savedHistory);
+            
+            // Display loaded messages
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = ''; // Clear existing messages
+            
+            chatHistory.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(msg.role === 'user' ? 'user-message' : 'bot-message');
+                
+                // Add message content with proper formatting for new lines
+                messageDiv.innerHTML = msg.content.replace(/\n/g, '<br>');
+                
+                // Add sources if available
+                if (msg.sources && msg.sources.length > 0) {
+                    const sourcesDiv = document.createElement('div');
+                    sourcesDiv.classList.add('sources');
+                    sourcesDiv.innerHTML = '<strong>Sources:</strong> ' + 
+                        msg.sources.map(s => s.source).join(', ');
+                    messageDiv.appendChild(sourcesDiv);
+                }
+                
+                chatMessages.appendChild(messageDiv);
+            });
+            
+            // Auto scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            console.log(`Loaded ${chatHistory.length} messages from localStorage`);
+            return;
+        }
+    } catch (e) {
+        console.warn('Could not load chat history from localStorage', e);
+    }
+    
+    // Add welcome message if no history loaded
+    addMessageToChat('Hello! I\'m your economics assistant. I can answer questions using my knowledge base or general knowledge. How can I help you today?', 'bot');
+}
+
+// Clear chat history
+function clearChat() {
+    // Clear chat display
+    document.getElementById('chatMessages').innerHTML = '';
+    
+    // Clear chat history array
+    chatHistory = [];
+    
+    // Clear localStorage
+    localStorage.removeItem('chatHistory');
+    
+    // Also clear server-side session
+    fetch('/api/session', {
+        method: 'DELETE'
+    }).then(() => {
+        console.log('Server-side session cleared');
+    }).catch(error => {
+        console.error('Error clearing server-side session:', error);
+    });
+    
+    // Add welcome message
+    addMessageToChat('Chat history cleared. How can I help you today?', 'bot');
+}
+
+// Add event listeners
 function setupEventListeners() {
+    // Listen for Enter key in input field
     document.getElementById('userQuestion').addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
             sendMessage();
@@ -252,47 +339,3 @@ function setupEventListeners() {
         });
     }
 }
-
-// Clear chat history
-function clearChat() {
-    // Clear chat display
-    document.getElementById('chatMessages').innerHTML = '';
-    
-    // Clear chat history
-    chatHistory = [];
-    
-    // Clear local storage
-    localStorage.removeItem('chatHistory');
-    
-    // Add welcome message
-    addMessageToChat('Chat history cleared. How can I help you today?', 'bot');
-}
-
-// Load chat history from localStorage
-function loadChatHistory() {
-    try {
-        const savedHistory = localStorage.getItem('chatHistory');
-        if (savedHistory) {
-            chatHistory = JSON.parse(savedHistory);
-            
-            // Display loaded messages
-            chatHistory.forEach(msg => {
-                const sources = [];  // We don't store sources in localStorage
-                addMessageToChat(msg.content, msg.role, sources);
-            });
-            
-            return;
-        }
-    } catch (e) {
-        console.warn('Could not load chat history from localStorage', e);
-    }
-    
-    // Add welcome message if no history loaded
-    addMessageToChat('Hello! I\'m your assistant. I can help with economics questions using my database or answer general questions with my knowledge. Ask me anything!', 'bot');
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    loadChatHistory();
-    setupEventListeners();
-});

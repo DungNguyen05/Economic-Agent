@@ -8,20 +8,8 @@ def get_example_data() -> List[Dict]:
     """Return a list of example economic data documents"""
     return [
         {
-            "content": "US GDP grew at an annual rate of 2.1% in Q2 2023, showing resilience despite high interest rates. Consumer spending, which accounts for more than two-thirds of U.S. economic activity, increased at a 1.7% rate.",
-            "source": "Bureau of Economic Analysis, Q2 2023 Report"
-        },
-        {
-            "content": "The Consumer Price Index (CPI) increased 3.7% for the 12 months ending September 2023, before seasonal adjustment. The index for all items less food and energy rose 4.1% over the last 12 months.",
-            "source": "Bureau of Labor Statistics, CPI Report October 2023"
-        },
-        {
-            "content": "The US unemployment rate stood at 3.8% in September 2023, reflecting a historically tight labor market. The economy added 336,000 jobs in September, significantly exceeding economists' expectations.",
-            "source": "Bureau of Labor Statistics, Employment Report October 2023"
-        },
-        {
-            "content": "The S&P 500 index reached 4,308 at the end of September 2023, representing a 13% increase from the beginning of the year. However, market volatility increased due to concerns about interest rates and inflation.",
-            "source": "Market Summary, Q3 2023"
+            "content": "BTC(bitcoin) Price is 50$",
+            "source": "BTC(bitcoin) Price is 50$"
         }
     ]
 

@@ -41,16 +41,13 @@ class RAGChainManager:
         Context:
         {context}
         
-        Chat History:
-        {chat_history}
+        Question: {question}
         
-        Current Question: {question}
-        
-        Answer the question based on the context and chat history, maintaining continuity with previous messages:
+        Answer the question based on the context:
         """
         
         qa_prompt = PromptTemplate(
-            input_variables=["context", "chat_history", "question"],
+            input_variables=["context", "question"],
             template=qa_template
         )
         

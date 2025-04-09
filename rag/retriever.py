@@ -1,6 +1,5 @@
-# rag/retriever.py - Advanced retrieval strategies
+# rag/retriever.py - Simplified and more effective retriever implementation
 import logging
-# Change this import
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors.chain_extract import LLMChainExtractor
 from langchain.prompts import PromptTemplate
@@ -11,26 +10,21 @@ import config
 logger = logging.getLogger(__name__)
 
 class AdvancedRetriever:
-    """Implements advanced retrieval strategies for RAG"""
+    """Implements a simplified and effective retrieval strategy for RAG"""
     
     def __init__(self, llm, base_retriever):
         """Initialize the advanced retriever with components"""
         self.llm = llm
         self.base_retriever = base_retriever
         
-        # Set up different retrieval strategies
-        if config.USE_QUERY_EXPANSION and config.USE_RERANKING:
-            logger.info("Initializing retriever with query expansion and reranking")
-            self.retriever = self._create_full_retriever()
-        elif config.USE_QUERY_EXPANSION:
-            logger.info("Initializing retriever with query expansion only")
-            self.retriever = self._create_query_expansion_retriever()
-        elif config.USE_RERANKING:
-            logger.info("Initializing retriever with reranking only")
-            self.retriever = self._create_reranking_retriever()
-        else:
-            logger.info("Initializing base retriever without enhancements")
-            self.retriever = base_retriever
+        # Create a single optimized retriever
+        logger.info("Initializing optimized retriever")
+        self.retriever = self._create_optimized_retriever()
+        
+        # Create query expansion chain if enabled
+        self.query_expansion_chain = None
+        if config.USE_QUERY_EXPANSION:
+            self.query_expansion_chain = self._create_query_expansion_chain()
     
     def _create_query_expansion_chain(self):
         """Create a query expansion chain for better retrieval"""
@@ -54,25 +48,9 @@ class AdvancedRetriever:
             prompt=query_expansion_prompt
         )
     
-    def _create_reranking_retriever(self):
-        """Create a retriever with context compression for reranking"""
-        compressor = LLMChainExtractor.from_llm(self.llm)
-        
-        return ContextualCompressionRetriever(
-            base_compressor=compressor,
-            base_retriever=self.base_retriever
-        )
-    
-    def _create_query_expansion_retriever(self):
-        """Create a retriever with query expansion"""
-        # Base retriever is used, but the query will be expanded
-        # The expansion happens at the chain level, not the retriever level
-        return self.base_retriever
-    
-    def _create_full_retriever(self):
-        """Create a retriever with both query expansion and reranking"""
-        # Query expansion happens at the chain level
-        # Here we just add the reranking/compression
+    def _create_optimized_retriever(self):
+        """Create a single optimized retriever with contextual compression"""
+        # Use contextual compression to get more relevant results
         compressor = LLMChainExtractor.from_llm(self.llm)
         
         return ContextualCompressionRetriever(
@@ -86,6 +64,4 @@ class AdvancedRetriever:
     
     def get_query_expansion_chain(self):
         """Return the query expansion chain if enabled, or None"""
-        if config.USE_QUERY_EXPANSION:
-            return self._create_query_expansion_chain()
-        return None
+        return self.query_expansion_chain

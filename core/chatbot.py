@@ -160,24 +160,6 @@ class Chatbot:
         
         return merged_history
     
-    def _evaluate_query_complexity(self, question: str) -> bool:
-        """Evaluate if the query is complex and needs context from RAG"""
-        # Simple heuristic: Check if the question is longer or contains specific keywords
-        economic_keywords = ["economy", "inflation", "gdp", "interest rates", "federal reserve", 
-                             "market", "recession", "economic", "fiscal", "monetary"]
-        
-        # Check for economic keywords
-        if any(keyword in question.lower() for keyword in economic_keywords):
-            return True
-        
-        # Check if it's a follow-up question referencing previous context
-        followup_indicators = ["previous", "earlier", "you mentioned", "you said", "above", 
-                               "what about", "how about", "tell me more", "elaborate"]
-        if any(indicator in question.lower() for indicator in followup_indicators):
-            return True
-            
-        return False
-    
     def _count_tokens(self, text: str) -> int:
         """Count the number of tokens in a text string using the tokenizer"""
         return len(self.tokenizer.encode(text))
@@ -206,7 +188,7 @@ class Chatbot:
         try:
             # Decision logic: Determine if we need RAG or can use general knowledge
             have_documents = len(self.document_manager.get_all_documents()) > 0
-            needs_rag = have_documents and self._evaluate_query_complexity(question)
+            needs_rag = have_documents
             
             # Track the answer and sources
             answer = ""

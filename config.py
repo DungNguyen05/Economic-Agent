@@ -112,3 +112,11 @@ logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper()),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+
+def setup_logging():
+    # Create a logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Ensure DEBUG level is set
+
+setup_logging()

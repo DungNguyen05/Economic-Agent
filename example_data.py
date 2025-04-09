@@ -8,10 +8,6 @@ def get_example_data() -> List[Dict]:
     """Return a list of example economic data documents"""
     return [
         {
-            "content": "The Federal Reserve raised interest rates by 0.25% in September 2023, bringing the federal funds rate to 5.25-5.50%. This was the 11th rate hike since March 2022 as part of the Fed's effort to combat inflation.",
-            "source": "Federal Reserve Press Release, September 2023"
-        },
-        {
             "content": "US GDP grew at an annual rate of 2.1% in Q2 2023, showing resilience despite high interest rates. Consumer spending, which accounts for more than two-thirds of U.S. economic activity, increased at a 1.7% rate.",
             "source": "Bureau of Economic Analysis, Q2 2023 Report"
         },

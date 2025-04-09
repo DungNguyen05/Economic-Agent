@@ -72,36 +72,29 @@ class RAGChainManager:
             max_tokens_limit=config.MAX_CONTEXT_LENGTH
         )
     
-    def _format_chat_history(self, history):
-        """Format chat history pairs into a readable string for context"""
-        if not history:
-            return ""
-            
-        formatted_history = ""
-        for i, (question, answer) in enumerate(history):
-            if question and answer:
-                formatted_history += f"User: {question}\nAssistant: {answer}\n\n"
-            elif question:
-                formatted_history += f"User: {question}\n\n"
-                
-        return formatted_history.strip()
-    
     def generate_response(self, question, chat_history=None):
         """Generate a response using the conversational retrieval chain with improved context handling"""
         if chat_history is None:
             chat_history = []
             
         try:
-            # Prepare chat history for the chain
-            formatted_history = self._format_chat_history(chat_history)
+            # Convert chat history to the format expected by LangChain
+            langchain_history = []
+            for user_msg, ai_msg in chat_history:
+                if user_msg:
+                    langchain_history.append(("Human", user_msg))
+                if ai_msg:
+                    langchain_history.append(("AI", ai_msg))
             
             # Get response from conversation chain with error handling
             response = self.conversation_chain({
                 "question": question,
-                "chat_history": formatted_history
+                "chat_history": langchain_history
             })
             
             return response
         except Exception as e:
             logger.error(f"Error generating response: {e}")
+            logger.error(f"Chat history type: {type(chat_history)}")
+            logger.error(f"Chat history content: {chat_history}")
             raise

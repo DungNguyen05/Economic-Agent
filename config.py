@@ -66,9 +66,6 @@ create_directories()
 # Document storage file
 DOCUMENTS_FILE = DATA_DIR / "documents.json"
 
-# Embedding model configuration
-# Use local sentence-transformers for embeddings (to save tokens)
-USE_LOCAL_EMBEDDINGS = _parse_bool(os.getenv("USE_LOCAL_EMBEDDINGS", "true"))
 
 # Default to all-MiniLM-L6-v2 which is fast and good quality
 # Alternative models to consider:

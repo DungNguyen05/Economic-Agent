@@ -2,8 +2,11 @@
 import logging
 import time
 import uuid
-from typing import List, Dict, Any, Optional
+import json
+import asyncio
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.dependencies import get_chatbot, validate_openai_key
@@ -79,13 +82,67 @@ async def list_models():
         ]
     }
 
-@router.post("/v1/chat/completions")
+async def generate_streaming_response(chat_id: str, model: str, answer: str) -> AsyncGenerator[str, None]:
+    """Generate a streaming response in the OpenAI chat.completion.chunk format"""
+    current_time = int(time.time())
+    
+    # First chunk: Send role
+    role_chunk = {
+        "id": chat_id,
+        "object": "chat.completion.chunk",
+        "created": current_time,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {
+                    "role": "assistant"
+                },
+                "finish_reason": None
+            }
+        ]
+    }
+    yield f"data: {json.dumps(role_chunk)}\n\n"
+    
+    # Stream the content word by word for a more natural streaming effect
+    words = answer.split()
+    
+    for i, word in enumerate(words):
+        # Add space after each word except the last one
+        content = word + (" " if i < len(words) - 1 else "")
+        
+        content_chunk = {
+            "id": chat_id,
+            "object": "chat.completion.chunk",
+            "created": current_time,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "content": content
+                    },
+                    "finish_reason": None if i < len(words) - 1 else "stop"
+                }
+            ]
+        }
+        
+        # Format as proper SSE with data: prefix and double newline
+        yield f"data: {json.dumps(content_chunk)}\n\n"
+        
+        # Add a small delay for a more natural stream
+        await asyncio.sleep(0.01)
+    
+    # Send the [DONE] marker
+    yield "data: [DONE]\n\n"
+
+@router.post("/chat/completions")
 async def chat_completions(
     request: ChatCompletionRequest,
     chatbot=Depends(get_chatbot),
     api_key: str = Depends(validate_openai_key)
 ):
-    """OpenAI-compatible chat completions endpoint"""
+    """OpenAI-compatible chat completions endpoint with streaming support"""
     try:
         logger.info(f"Received chat completion request with {len(request.messages)} messages")
         
@@ -100,13 +157,31 @@ async def chat_completions(
             logger.warning("No user message found in request")
             raise HTTPException(status_code=400, detail="No user message found")
         
+        # Special handling for Mattermost messages that may include @mentions
+        # Strip any leading @mention patterns
+        if "@" in last_user_message and " " in last_user_message:
+            parts = last_user_message.split(" ", 1)
+            if parts[0].startswith("@"):
+                last_user_message = parts[1]
+                logger.info(f"Removed mention from message, now: {last_user_message}")
+        
         # Format chat history for our chatbot
         chat_history = []
         for msg in request.messages:
             if msg.role in ["user", "assistant"]:
+                # For user messages, clean up any @mentions
+                if msg.role == "user" and "@" in msg.content and " " in msg.content:
+                    parts = msg.content.split(" ", 1)
+                    if parts[0].startswith("@"):
+                        msg_content = parts[1]
+                    else:
+                        msg_content = msg.content
+                else:
+                    msg_content = msg.content
+                    
                 chat_history.append({
                     "role": msg.role,
-                    "content": msg.content
+                    "content": msg_content
                 })
         
         # Remove the last user message from history (we'll send it as the question)
@@ -128,16 +203,28 @@ async def chat_completions(
             source_text = "\n\nSources: " + ", ".join([s["source"] for s in sources])
             answer += source_text
         
-        # Create OpenAI-compatible response
+        # Generate a unique ID for this completion
+        chat_id = f"chatcmpl-{str(uuid.uuid4())[:8]}"
         current_time = int(time.time())
         
         # Estimate token counts for usage stats
         prompt_tokens = count_tokens(" ".join([msg.content for msg in request.messages]))
         completion_tokens = count_tokens(answer)
         
+        # Check if streaming is requested
+        if request.stream:
+            logger.info("Streaming response requested, generating SSE stream")
+            return StreamingResponse(
+                generate_streaming_response(chat_id, request.model, answer),
+                media_type="text/event-stream"
+            )
+        
+        # Non-streaming response
+        logger.info("Generating non-streaming response")
+        
         # Strictly follow OpenAI response structure for maximum compatibility
         response = {
-            "id": f"chatcmpl-{str(uuid.uuid4())[:8]}",
+            "id": chat_id,
             "object": "chat.completion",
             "created": current_time,
             "model": request.model,
@@ -179,12 +266,15 @@ async def direct_chat_completions(
     chatbot=Depends(get_chatbot),
     api_key: str = Depends(validate_openai_key)
 ):
-    """Direct chat/completions endpoint for Mattermost"""
+    """Direct chat/completions endpoint for Mattermost with streaming support"""
     try:
         logger.info("Received request to /chat/completions endpoint")
         
         # Parse request body manually to handle different request formats
         body = await request.json()
+        
+        # Check if streaming is requested
+        stream = body.get("stream", False)
         
         # Convert request to our standard format
         standardized_request = ChatCompletionRequest(
@@ -197,7 +287,9 @@ async def direct_chat_completions(
                 for msg in body.get("messages", [])
             ],
             temperature=body.get("temperature", 0.3),
-            user=body.get("user", "default")
+            max_tokens=body.get("max_tokens", None),
+            user=body.get("user", "default"),
+            stream=stream
         )
         
         # Process the request using our standard endpoint
@@ -206,11 +298,14 @@ async def direct_chat_completions(
     except Exception as e:
         logger.error(f"Error in direct chat completions endpoint: {e}", exc_info=True)
         # Return a more detailed error response that Mattermost can understand
-        return {
-            "error": {
-                "message": str(e),
-                "type": "server_error",
-                "param": None,
-                "code": 500
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "message": str(e),
+                    "type": "server_error",
+                    "param": None,
+                    "code": 500
+                }
             }
-        }
+        )

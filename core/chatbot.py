@@ -169,13 +169,6 @@ class Chatbot:
                         chat_history: Optional[List[Dict]] = None, 
                         session_id: str = "default") -> Tuple[str, List[Dict]]:
         """Generate an answer using either RAG or general knowledge based on query needs"""
-        # Sanitize session_id to ensure it's valid
-        if not session_id or not isinstance(session_id, str):
-            session_id = "default"
-        
-        # Limit session_id length to prevent storage issues
-        session_id = session_id[:36]
-        
         # Get current session history
         session_history = self.get_session_history(session_id)
         
@@ -261,12 +254,6 @@ class Chatbot:
             
             # Update session history with this interaction
             self.update_session_history(session_id, question, answer)
-            
-            # For Mattermost integration, enhance the response with structured data if needed
-            if question.lower().startswith(('what is', 'tell me about', 'define')) and not sources:
-                # This is a knowledge/definition question
-                # We could add structured data here in the future
-                pass
             
             return answer, sources
             

@@ -1,6 +1,6 @@
-# Economic Chatbot with Memory
+# Economic Chatbot with Memory and Mattermost Integration
 
-A Python-based economic chatbot that remembers conversation history and uses Retrieval-Augmented Generation (RAG) to answer questions accurately. This system maintains conversational context across interactions while efficiently retrieving relevant information from your knowledge base.
+A Python-based economic chatbot that remembers conversation history and uses Retrieval-Augmented Generation (RAG) to answer questions accurately. This system maintains conversational context across interactions while efficiently retrieving relevant information from your knowledge base. Now with Mattermost integration!
 
 ## Key Features
 
@@ -10,6 +10,7 @@ A Python-based economic chatbot that remembers conversation history and uses Ret
 - **Hybrid Knowledge** - Seamlessly switches between document-based and general knowledge responses
 - **User-Friendly Interface** - Clean UI with typing indicators and session management
 - **Persistent Storage** - Multi-layer storage with cookies, localStorage, and server-side session management
+- **Mattermost Integration** - Connect to Mattermost via outgoing webhooks
 
 ## System Architecture
 
@@ -32,6 +33,12 @@ This chatbot uses a sophisticated hybrid architecture:
    - History truncation to manage context window
    - Efficient prompt formatting
    - Token usage tracking and analysis
+   
+4. **Mattermost Integration**
+   - Webhook-based integration with Mattermost
+   - Maintains conversation context per Mattermost user
+   - Supports trigger words for bot activation
+   - Formats responses according to Mattermost requirements
 
 ## Getting Started
 
@@ -78,6 +85,42 @@ The application uses:
 - Local vector database (Qdrant) stored in the data directory
 - Local file storage for documents
 - OpenAI API (the only external service) for generating responses
+
+## Mattermost Integration
+
+### Setting Up Mattermost Outgoing Webhooks
+
+1. In your Mattermost instance, go to **System Console** > **Integrations** > **Outgoing Webhooks**
+2. Click **Add Outgoing Webhook**
+3. Configure the webhook:
+   - **Title**: Economic Assistant
+   - **Description**: AI-powered economic assistant
+   - **Content Type**: application/x-www-form-urlencoded
+   - **Channel**: Choose the channel where the bot should respond (or leave blank for all channels)
+   - **Trigger Words**: Add trigger words like @econ-bot
+   - **Trigger When**: Start With A Trigger Word
+   - **Callback URLs**: http://your-server-address:8000/webhook/mattermost
+   - **Response Username**: Economic Bot (or your preferred name)
+   - **Response Icon**: (Optional) URL to a bot avatar
+4. Save the configuration
+
+### Testing the Integration
+
+You can use the included test script to verify the integration:
+
+```
+python test_mattermost_webhook.py --url http://your-server-address:8000
+```
+
+### Interacting with the Bot in Mattermost
+
+Once configured, you can interact with the bot in Mattermost by using the trigger word:
+
+```
+@econ-bot What is inflation?
+```
+
+The bot will respond in the same channel with the answer.
 
 ## Usage
 
@@ -188,6 +231,8 @@ economic_chatbot/
 ├── api/                      # Local API endpoints
 │   ├── models.py             # API data models
 │   ├── routes.py             # API route handlers
+│   ├── openai_compat.py      # OpenAI compatibility API
+│   ├── mattermost.py         # Mattermost webhook handler
 │   └── dependencies.py       # FastAPI dependencies
 │
 ├── static/                   # Static files (served locally)
@@ -196,6 +241,8 @@ economic_chatbot/
 │
 ├── templates/                # HTML templates (rendered locally)
 │   └── index.html            # Main interface
+│
+├── test_mattermost_webhook.py  # Test script for Mattermost integration
 │
 └── data/                     # Local data storage
     ├── qdrant_storage/       # Local vector database files
@@ -224,6 +271,12 @@ the OpenAI API for generating the final text responses.
    - Reduce MAX_CONTEXT_LENGTH in config.py
    - Decrease conversation history length in chatbot.py
    - Use more focused, shorter documents
+
+4. **Mattermost integration issues**
+   - Check the server logs for webhook processing details
+   - Verify the webhook URL is correctly configured in Mattermost
+   - Ensure network connectivity between Mattermost and your server
+   - Run the test_mattermost_webhook.py script to verify the endpoint
 
 ## License
 

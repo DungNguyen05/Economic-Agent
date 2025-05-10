@@ -1,4 +1,4 @@
-# app.py - Main FastAPI application with modular structure and OpenAI compatibility
+# app.py - Main FastAPI application with modular structure and Mattermost integration
 import os
 import time
 import logging
@@ -24,6 +24,7 @@ from example_data import load_example_data
 from api.routes import router as api_router
 from web.routes import router as web_router
 from api.openai_compat import router as openai_compat_router
+from api.mattermost import router as mattermost_router  # New Mattermost router
 
 # Global variables to manage application state
 embeddings_manager = None
@@ -93,9 +94,9 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI application with lifespan context
 app = FastAPI(
-    title="Economic Chatbot with OpenAI Compatibility",
-    description="A chatbot that answers questions about the economy using advanced RAG with Langchain, OpenAI for responses, and OpenAI API compatibility for Mattermost",
-    version="1.2.0",
+    title="Economic Chatbot with Mattermost Integration",
+    description="A chatbot that answers questions about the economy using advanced RAG with Langchain, OpenAI for responses, and integrations for Mattermost",
+    version="1.3.0",
     debug=config.DEBUG,
     lifespan=lifespan
 )
@@ -114,18 +115,21 @@ app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static
 
 # Include routers - Order matters here
 app.include_router(openai_compat_router)  # Add OpenAI compatibility router FIRST
+app.include_router(mattermost_router)     # Add Mattermost webhook router SECOND
 app.include_router(api_router)
 app.include_router(web_router)
 
 # Authentication middleware for OpenAI compatibility
 @app.middleware("http")
-
 async def validate_api_key(request: Request, call_next):
     """Middleware to validate API key for OpenAI compatibility endpoints"""
     # Check if this is an OpenAI endpoint
     is_openai_path = request.url.path.startswith("/v1/") or request.url.path == "/chat/completions"
     
-    if is_openai_path:
+    # Skip validation for Mattermost webhook endpoints
+    is_mattermost_webhook = request.url.path.startswith("/webhook/mattermost")
+    
+    if is_openai_path and not is_mattermost_webhook:
         logging.info(f"Received request to OpenAI compatible endpoint: {request.url.path}")
         auth_header = request.headers.get("Authorization")
         
@@ -175,10 +179,11 @@ async def root():
     return {
         "status": "online",
         "service": "Economic Chatbot API",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "ui_url": "/index.html",
         "docs_url": "/docs",
         "openai_compatible": True,
+        "mattermost_webhook_url": "/webhook/mattermost",
         "time": int(time.time())
     }
 
